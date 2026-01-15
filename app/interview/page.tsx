@@ -1,65 +1,124 @@
 "use client";
 
-import { useSearchParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "@/lib/firebase";
+import { useRouter, useSearchParams } from "next/navigation";
 
 export default function InterviewPage() {
-  const params = useSearchParams();
   const router = useRouter();
-  const role = params.get("role");
-  
-  const [answer, setAnswer] = useState("");
-  const [isLoading, setIsLoading] = useState(false); // Added loading state
+  const params = useSearchParams();
+  const role = params.get("role") || "Job";
 
-  // Function to handle the submit action
-  const handleSubmit = async () => {
-    if (!answer) return alert("Please type an answer first!");
+  const [userName, setUserName] = useState("User");
+  const [aiText, setAiText] = useState("");
+  const [listening, setListening] = useState(false);
+  const [questionIndex, setQuestionIndex] = useState(0);
 
-    setIsLoading(true);
+  const questions = [
+    "Tell me about yourself.",
+    "What are your strengths?",
+    "What is your biggest weakness?",
+    "Why should we hire you?",
+  ];
 
-    // In a real app, you would save the data to a database here.
-    // For now, we wait 1 second and then move to the dashboard.
-    setTimeout(() => {
-      setIsLoading(false);
-      // This sends the user to the dashboard after clicking submit
-      router.push("/dashboard"); 
-    }, 1000);
+  // 🔐 Get logged-in user
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        router.push("/login");
+      } else {
+        const name = user.displayName || user.email || "User";
+        setUserName(name);
+
+        const intro = `Hello ${name}. Welcome to your ${role} interview. ${questions[0]}`;
+        setAiText(intro);
+        speak(intro);
+      }
+    });
+
+    return () => unsub();
+  }, [router]);
+
+  // 🔊 AI SPEAKS
+  const speak = (text: string) => {
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = "en-US";
+    speechSynthesis.speak(utter);
+  };
+
+  // 🎤 USER SPEAKS
+  const startListening = () => {
+    const SpeechRecognition =
+      (window as any).SpeechRecognition ||
+      (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      alert("Speech Recognition not supported");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = "en-US";
+    recognition.start();
+    setListening(true);
+
+    recognition.onresult = () => {
+      setListening(false);
+      nextQuestion();
+    };
+
+    recognition.onend = () => setListening(false);
+  };
+
+  // 🔁 NEXT QUESTION
+  const nextQuestion = () => {
+    const next = questionIndex + 1;
+
+    if (next < questions.length) {
+      setQuestionIndex(next);
+      setAiText(questions[next]);
+      speak(questions[next]);
+    } else {
+      const endText = "Interview completed. Thank you.";
+      setAiText(endText);
+      speak(endText);
+    }
   };
 
   return (
-    <main className="min-h-screen bg-[#0B0B0F] flex items-center justify-center px-4">
-      <div className="w-full max-w-xl bg-[#111118] border border-white/10 rounded-2xl p-8">
+    <main className="min-h-screen bg-[#0B0B0F] text-white flex items-center justify-center px-6">
+      <div className="w-full max-w-6xl grid grid-cols-2 gap-8">
 
-        <p className="text-sm text-gray-400 mb-2">
-          Interview for {role}
-        </p>
+        {/* 🤖 AI INTERVIEWER */}
+        <div className="bg-[#111118] rounded-2xl p-10 flex flex-col items-center">
+          <div className="w-24 h-24 rounded-full bg-indigo-600 flex items-center justify-center text-3xl">
+            🤖
+          </div>
+          <h2 className="mt-4 font-semibold">AI Interviewer</h2>
+        </div>
 
-        <h2 className="text-xl font-semibold text-white mb-6">
-          Tell me about yourself
-        </h2>
+        {/* 👤 USER */}
+        <div className="bg-[#111118] rounded-2xl p-10 flex flex-col items-center">
+          <div className="w-24 h-24 rounded-full bg-gray-700 flex items-center justify-center text-3xl">
+            👤
+          </div>
+          <h2 className="mt-4 font-semibold">{userName}</h2>
+        </div>
 
-        <textarea
-          value={answer}
-          onChange={(e) => setAnswer(e.target.value)}
-          placeholder="Type your answer here..."
-          className="w-full h-36 p-4 rounded-xl bg-black/40 text-white border border-white/10 mb-6 focus:outline-none focus:border-purple-500"
-        />
+        {/* 🎙️ BOTTOM VOICE BAR */}
+        <div className="col-span-2 bg-[#0F0F14] rounded-xl p-6 flex items-center justify-between">
+          <p className="text-gray-300 max-w-3xl">{aiText}</p>
 
-        {/* Added onClick and disabled state */}
-        <button 
-          onClick={handleSubmit}
-          disabled={isLoading}
-          className={`w-full py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-semibold transition-opacity ${isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'}`}
-        >
-          {isLoading ? "Submitting..." : "Submit Answer"}
-        </button>
-
-        <button
-          onClick={() => router.push("/dashboard")}
-          className="w-full py-3 mt-3 rounded-xl border border-white/10 text-gray-300 hover:bg-white/5 transition-colors"
-        >
-          End Interview
-        </button>
+          <button
+            onClick={startListening}
+            className={`px-6 py-3 rounded-full font-semibold ${
+              listening ? "bg-red-600" : "bg-indigo-600"
+            }`}
+          >
+            {listening ? "Listening..." : "Speak"}
+          </button>
+        </div>
 
       </div>
     </main>
