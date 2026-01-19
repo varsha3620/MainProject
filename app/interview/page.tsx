@@ -1,60 +1,49 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "@/lib/firebase";
-import { useRouter, useSearchParams } from "next/navigation";
+import { onAuthStateChanged } from "firebase/auth";
+import { Bot, Mic } from "lucide-react";
 
 export default function InterviewPage() {
-  const router = useRouter();
-  const params = useSearchParams();
-  const role = params.get("role") || "Job";
-
   const [userName, setUserName] = useState("User");
-  const [aiText, setAiText] = useState("");
+  const [question, setQuestion] = useState("");
   const [listening, setListening] = useState(false);
-  const [questionIndex, setQuestionIndex] = useState(0);
 
-  const questions = [
-    "Tell me about yourself.",
-    "What are your strengths?",
-    "What is your biggest weakness?",
-    "Why should we hire you?",
-  ];
-
-  // 🔐 Get logged-in user
+  // Get logged-in user's name
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
-      if (!user) {
-        router.push("/login");
-      } else {
-        const name = user.displayName || user.email || "User";
-        setUserName(name);
-
-        const intro = `Hello ${name}. Welcome to your ${role} interview. ${questions[0]}`;
-        setAiText(intro);
-        speak(intro);
+      if (user?.displayName) {
+        setUserName(user.displayName);
       }
     });
 
     return () => unsub();
-  }, [router]);
+  }, []);
 
-  // 🔊 AI SPEAKS
-  const speak = (text: string) => {
+  // Speak AI question
+  const speakAI = (text: string) => {
+    window.speechSynthesis.cancel();
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = "en-US";
-    speechSynthesis.speak(utter);
+    window.speechSynthesis.speak(utter);
   };
 
-  // 🎤 USER SPEAKS
+  // Start Interview
+  const startInterview = () => {
+    const firstQuestion = `Hello ${userName}. Welcome to your Back End interview interview. Tell me about yourself.`;
+    setQuestion(firstQuestion);
+    speakAI(firstQuestion);
+  };
+
+  // User speaks
   const startListening = () => {
     const SpeechRecognition =
       (window as any).SpeechRecognition ||
       (window as any).webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
-      alert("Speech Recognition not supported");
+      alert("Speech recognition not supported in this browser");
       return;
     }
 
@@ -63,63 +52,68 @@ export default function InterviewPage() {
     recognition.start();
     setListening(true);
 
-    recognition.onresult = () => {
+    recognition.onresult = (event: any) => {
+      const userAnswer = event.results[0][0].transcript;
       setListening(false);
-      nextQuestion();
+
+      // TEMP next question (AI logic already exists in your API)
+      const nextQuestion = "Thank you. Can you explain your backend experience?";
+      setQuestion(nextQuestion);
+      speakAI(nextQuestion);
     };
 
     recognition.onend = () => setListening(false);
   };
 
-  // 🔁 NEXT QUESTION
-  const nextQuestion = () => {
-    const next = questionIndex + 1;
-
-    if (next < questions.length) {
-      setQuestionIndex(next);
-      setAiText(questions[next]);
-      speak(questions[next]);
-    } else {
-      const endText = "Interview completed. Thank you.";
-      setAiText(endText);
-      speak(endText);
-    }
-  };
-
   return (
-    <main className="min-h-screen bg-[#0B0B0F] text-white flex items-center justify-center px-6">
-      <div className="w-full max-w-6xl grid grid-cols-2 gap-8">
+    <main className="min-h-screen bg-black text-white flex flex-col justify-center px-10">
+      
+      {/* TOP INTERVIEW CARDS */}
+      <div className="grid grid-cols-2 gap-8 mb-10">
 
-        {/* 🤖 AI INTERVIEWER */}
-        <div className="bg-[#111118] rounded-2xl p-10 flex flex-col items-center">
-          <div className="w-24 h-24 rounded-full bg-indigo-600 flex items-center justify-center text-3xl">
-            🤖
+        {/* AI INTERVIEWER */}
+        <div className="bg-[#0f0f14] rounded-2xl h-64 flex flex-col items-center justify-center border border-white/10">
+          <div className="w-20 h-20 bg-indigo-600 rounded-full flex items-center justify-center mb-4">
+            <Bot size={36} />
           </div>
-          <h2 className="mt-4 font-semibold">AI Interviewer</h2>
+          <p className="font-semibold">AI Interviewer</p>
         </div>
 
-        {/* 👤 USER */}
-        <div className="bg-[#111118] rounded-2xl p-10 flex flex-col items-center">
-          <div className="w-24 h-24 rounded-full bg-gray-700 flex items-center justify-center text-3xl">
-            👤
+        {/* USER */}
+        <div className="bg-[#0f0f14] rounded-2xl h-64 flex flex-col items-center justify-center border border-white/10">
+          <div className="w-20 h-20 bg-gray-700 rounded-full flex items-center justify-center mb-4">
+            <span className="text-xl font-bold">
+              {userName.charAt(0).toUpperCase()}
+            </span>
           </div>
-          <h2 className="mt-4 font-semibold">{userName}</h2>
+          <p className="font-semibold">{userName}</p>
         </div>
+      </div>
 
-        {/* 🎙️ BOTTOM VOICE BAR */}
-        <div className="col-span-2 bg-[#0F0F14] rounded-xl p-6 flex items-center justify-between">
-          <p className="text-gray-300 max-w-3xl">{aiText}</p>
+      {/* QUESTION BAR */}
+      <div className="bg-[#0f0f14] rounded-xl p-6 flex items-center justify-between border border-white/10">
+        <p className="text-sm text-gray-200 max-w-4xl">
+          {question || "Click Start Interview to begin"}
+        </p>
 
+        {!question ? (
+          <button
+            onClick={startInterview}
+            className="bg-indigo-600 px-6 py-3 rounded-full font-semibold"
+          >
+            Start Interview
+          </button>
+        ) : (
           <button
             onClick={startListening}
-            className={`px-6 py-3 rounded-full font-semibold ${
+            className={`px-6 py-3 rounded-full font-semibold flex items-center gap-2 ${
               listening ? "bg-red-600" : "bg-indigo-600"
             }`}
           >
+            <Mic size={18} />
             {listening ? "Listening..." : "Speak"}
           </button>
-        </div>
-
+        )}
       </div>
     </main>
   );
