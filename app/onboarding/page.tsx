@@ -92,16 +92,13 @@ export default function OnboardingPage() {
                 <div className="flex justify-between items-center gap-4">
 
                   {/* Interview Button */}
-                  <button
-                    onClick={() =>
-                      router.push(
-                        `/interview?role=${encodeURIComponent(item.role)}`
-                      )
-                    }
-                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 transition-all py-2 rounded-full text-sm font-semibold"
-                  >
-                    Interview Again
-                  </button>
+                 <button
+                    onClick={() => router.push("/dashboard")}
+                    className="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-md text-sm font-semibold"
+              >
+                Interview
+              </button>
+
 
                   {/* Feedback Button */}
                   {item.feedback ? (

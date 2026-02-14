@@ -21,7 +21,7 @@ export default function InterviewPage() {
 
   const jobRole = searchParams.get("role") || "Software Developer";
 
-  // 🔥 INIT VAPI ONLY ONCE
+  // INIT VAPI
   useEffect(() => {
     const key = process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY;
     if (!key) return;
@@ -29,7 +29,6 @@ export default function InterviewPage() {
     const vapi = new Vapi(key);
     vapiRef.current = vapi;
 
-    // Get logged in user name
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user?.displayName) {
         setUserName(user.displayName);
@@ -38,7 +37,6 @@ export default function InterviewPage() {
       }
     });
 
-    // Call started
     vapi.on("call-start", () => {
       setIsCalling(true);
       setInterviewEnded(false);
@@ -46,21 +44,17 @@ export default function InterviewPage() {
       setStatus("Interview in progress...");
     });
 
-    // Call ended
     vapi.on("call-end", () => {
       setIsCalling(false);
       setInterviewEnded(true);
       setStatus("Interview ended");
     });
 
-    // Listen to messages
     vapi.on("message", (message: any) => {
-      // Only process FINAL transcripts
       if (
         message.type === "transcript" &&
         message.transcriptType === "final"
       ) {
-        // Show ONLY interviewer speech on screen
         if (message.role === "assistant") {
           setActiveSpeech(message.transcript);
           setFullTranscript(
@@ -68,7 +62,6 @@ export default function InterviewPage() {
           );
         }
 
-        // Store candidate speech but DO NOT display
         if (message.role === "user") {
           setFullTranscript(
             (prev) => prev + "\nCandidate: " + message.transcript
@@ -91,30 +84,77 @@ export default function InterviewPage() {
     };
   }, []);
 
-  // ✅ START INTERVIEW
+  // START INTERVIEW WITH INTELLIGENT PROMPT
   const startInterview = async () => {
     try {
       const assistantId = process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID;
       if (!assistantId || !vapiRef.current) return;
 
-      // Request mic permission
       await navigator.mediaDevices.getUserMedia({ audio: true });
 
-      // Start assistant (no override to avoid audio issue)
-      await vapiRef.current.start(assistantId);
+      const assistantOverrides = {
+        model: {
+          provider: "openai",
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: `
+You are a professional AI interviewer.
 
+You are conducting an interview for the role of ${jobRole}.
+
+Candidate name: ${userName}
+
+STRICT RULES:
+
+1. FIRST QUESTION MUST ALWAYS BE:
+   "Please introduce yourself and tell me about your background."
+
+2. Ask ONLY 3 questions total.
+
+3. Questions must be SIMPLE and clear.
+
+4. After first question, ask role-specific questions based on:
+   - The job role
+   - The candidate's previous answer
+
+5. Never repeat the same question in the same interview.
+
+6. If candidate says:
+   - "I can't hear" → politely repeat clearly.
+   - "Repeat the question" → repeat the last question exactly.
+   - "Can you say again?" → repeat clearly.
+
+7. If candidate selects the same job role again in future session,
+   generate different technical questions than before.
+
+8. Ask only one question at a time.
+
+9. Wait until candidate finishes answering before asking next.
+
+10. Maintain friendly, professional tone.
+
+After 3 questions, politely end the interview.
+
+Do not interrupt the candidate.
+`,
+            },
+          ],
+        },
+      };
+
+      await vapiRef.current.start(assistantId, assistantOverrides as any);
     } catch (error) {
       console.error("Start Error:", error);
       alert("Microphone permission required.");
     }
   };
 
-  // ✅ STOP INTERVIEW
   const stopInterview = () => {
     vapiRef.current?.stop();
   };
 
-  // ✅ GO TO FEEDBACK
   const goToFeedback = () => {
     if (!fullTranscript) {
       alert("No conversation recorded.");
@@ -130,7 +170,6 @@ export default function InterviewPage() {
   return (
     <main className="min-h-screen bg-black text-white flex flex-col justify-center px-10">
 
-      {/* FEEDBACK BUTTON */}
       <div className="flex justify-end mb-4">
         {interviewEnded && (
           <button
@@ -142,15 +181,11 @@ export default function InterviewPage() {
         )}
       </div>
 
-      {/* AI + USER CARDS */}
       <div className="grid grid-cols-2 gap-8 mb-10">
-
         <div className="bg-[#0f0f14] rounded-2xl h-48 flex flex-col items-center justify-center border border-white/10">
-          <div
-            className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 ${
-              isCalling ? "bg-green-600 animate-pulse" : "bg-indigo-600"
-            }`}
-          >
+          <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 ${
+            isCalling ? "bg-green-600 animate-pulse" : "bg-indigo-600"
+          }`}>
             <Bot size={32} />
           </div>
           <p className="text-sm text-gray-400 font-bold uppercase">
@@ -166,10 +201,8 @@ export default function InterviewPage() {
             {userName}
           </p>
         </div>
-
       </div>
 
-      {/* SHOW ONLY INTERVIEWER TEXT */}
       <div className="bg-[#0f0f14] rounded-xl p-8 text-center min-h-[140px] flex items-center justify-center border border-white/10 mb-8 shadow-inner">
         {activeSpeech ? (
           <p className="text-xl font-medium text-indigo-100 leading-relaxed">
@@ -182,7 +215,6 @@ export default function InterviewPage() {
         )}
       </div>
 
-      {/* CONTROLS */}
       <div className="bg-[#0f0f14] rounded-xl p-6 flex items-center justify-between border border-white/10">
         <div>
           <p className="text-xs text-purple-400 font-bold uppercase mb-1">
