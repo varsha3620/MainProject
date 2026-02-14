@@ -13,7 +13,7 @@ export default function LoginPage() {
   const handleLogin = async () => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      router.push("/dashboard");
+      router.push("/onboarding");
     } catch {
       alert("Invalid email or password");
     }
