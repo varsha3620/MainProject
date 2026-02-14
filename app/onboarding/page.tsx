@@ -40,69 +40,96 @@ export default function OnboardingPage() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-black text-white p-10">
-      <h1 className="text-3xl font-bold mb-10">
-        Your Interviews
-      </h1>
+    <main className="min-h-screen bg-gradient-to-b from-black via-[#0f0f14] to-black text-white px-6 py-16">
 
-      {loading ? (
-        <p className="text-gray-400">Loading...</p>
-      ) : interviews.length === 0 ? (
-        <div className="space-y-6">
-          <p className="text-gray-400">
-            No interviews yet.
-          </p>
+      {/* Page Header */}
+      <div className="max-w-5xl mx-auto mb-12 text-center">
+        <h1 className="text-4xl font-bold tracking-tight mb-4">
+          Your Interview History
+        </h1>
+        <p className="text-gray-400 text-lg">
+          Practice, improve, and review your AI interview performance.
+        </p>
+      </div>
 
-          <button
-            onClick={() => router.push("/dashboard")}
-            className="bg-indigo-600 hover:bg-indigo-700 px-6 py-3 rounded-lg font-semibold"
-          >
-            Start Interview
-          </button>
-        </div>
-      ) : (
-        <div className="grid md:grid-cols-2 gap-6">
-          {interviews.map((item: any) => (
-            <div
-              key={item.id}
-              className="bg-[#0f0f14] p-6 rounded-2xl border border-white/10 flex justify-between items-center"
+      <div className="max-w-5xl mx-auto">
+
+        {loading ? (
+          <div className="flex justify-center">
+            <p className="text-gray-400 animate-pulse text-lg">
+              Loading interviews...
+            </p>
+          </div>
+        ) : interviews.length === 0 ? (
+          <div className="bg-[#111118] border border-white/10 rounded-3xl p-12 text-center shadow-xl">
+            <p className="text-gray-400 mb-6 text-lg">
+              You haven’t completed any interviews yet.
+            </p>
+
+            <button
+              onClick={() => router.push("/dashboard")}
+              className="bg-indigo-600 hover:bg-indigo-700 transition-all px-8 py-3 rounded-full font-semibold text-sm tracking-wide shadow-lg"
             >
-              {/* Interview Button */}
-              <button
-                onClick={() =>
-                  router.push(
-                    `/interview?role=${encodeURIComponent(item.role)}`
-                  )
-                }
-                className="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-md text-sm font-semibold"
+              Start Your First Interview
+            </button>
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-2 gap-8">
+            {interviews.map((item: any) => (
+              <div
+                key={item.id}
+                className="bg-[#111118] border border-white/10 rounded-3xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300 flex flex-col justify-between"
               >
-                Interview
-              </button>
+                <div className="mb-6">
+                  <h2 className="text-xl font-semibold mb-2 text-indigo-400">
+                    {item.role}
+                  </h2>
+                  <p className="text-gray-500 text-sm">
+                    Review or retry your interview session.
+                  </p>
+                </div>
 
-              {/* Feedback Button */}
-              {item.feedback ? (
-                <button
-                  onClick={() =>
-                    router.push(
-                      `/feedback?interviewId=${item.id}`
-                    )
-                  }
-                  className="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-md text-sm font-semibold"
-                >
-                  Feedback
-                </button>
-              ) : (
-                <button
-                  disabled
-                  className="bg-gray-700 px-4 py-2 rounded-md text-sm opacity-50"
-                >
-                  No Feedback
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+                <div className="flex justify-between items-center gap-4">
+
+                  {/* Interview Button */}
+                  <button
+                    onClick={() =>
+                      router.push(
+                        `/interview?role=${encodeURIComponent(item.role)}`
+                      )
+                    }
+                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 transition-all py-2 rounded-full text-sm font-semibold"
+                  >
+                    Interview Again
+                  </button>
+
+                  {/* Feedback Button */}
+                  {item.feedback ? (
+                    <button
+                      onClick={() =>
+                        router.push(
+                          `/feedback?interviewId=${item.id}`
+                        )
+                      }
+                      className="flex-1 bg-purple-600 hover:bg-purple-700 transition-all py-2 rounded-full text-sm font-semibold"
+                    >
+                      View Feedback
+                    </button>
+                  ) : (
+                    <button
+                      disabled
+                      className="flex-1 bg-gray-700 py-2 rounded-full text-sm opacity-50 cursor-not-allowed"
+                    >
+                      Feedback
+                    </button>
+                  )}
+
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </main>
   );
 }
