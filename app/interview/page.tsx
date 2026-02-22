@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Vapi from "@vapi-ai/web";
-import { auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { Bot, Mic, Square } from "lucide-react";
+import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { db, auth } from "@/lib/firebase";
 
 export default function InterviewPage() {
   const searchParams = useSearchParams();
@@ -21,7 +22,6 @@ export default function InterviewPage() {
 
   const jobRole = searchParams.get("role") || "Software Developer";
 
-  // INIT VAPI
   useEffect(() => {
     const key = process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY;
     if (!key) return;
@@ -51,10 +51,7 @@ export default function InterviewPage() {
     });
 
     vapi.on("message", (message: any) => {
-      if (
-        message.type === "transcript" &&
-        message.transcriptType === "final"
-      ) {
+      if (message.type === "transcript" && message.transcriptType === "final") {
         if (message.role === "assistant") {
           setActiveSpeech(message.transcript);
           setFullTranscript(
@@ -70,21 +67,12 @@ export default function InterviewPage() {
       }
     });
 
-    vapi.on("speech-start", () => {
-      setStatus("AI is speaking...");
-    });
-
-    vapi.on("speech-end", () => {
-      setStatus("AI is listening...");
-    });
-
     return () => {
       vapi.stop();
       unsubscribe();
     };
   }, []);
 
-  // START INTERVIEW WITH INTELLIGENT PROMPT
   const startInterview = async () => {
     try {
       const assistantId = process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID;
@@ -92,59 +80,7 @@ export default function InterviewPage() {
 
       await navigator.mediaDevices.getUserMedia({ audio: true });
 
-      const assistantOverrides = {
-        model: {
-          provider: "openai",
-          model: "gpt-4o-mini",
-          messages: [
-            {
-              role: "system",
-              content: `
-You are a professional AI interviewer.
-
-You are conducting an interview for the role of ${jobRole}.
-
-Candidate name: ${userName}
-
-STRICT RULES:
-
-1. FIRST QUESTION MUST ALWAYS BE:
-   "Please introduce yourself and tell me about your background."
-
-2. Ask ONLY 3 questions total.
-
-3. Questions must be SIMPLE and clear.
-
-4. After first question, ask role-specific questions based on:
-   - The job role
-   - The candidate's previous answer
-
-5. Never repeat the same question in the same interview.
-
-6. If candidate says:
-   - "I can't hear" → politely repeat clearly.
-   - "Repeat the question" → repeat the last question exactly.
-   - "Can you say again?" → repeat clearly.
-
-7. If candidate selects the same job role again in future session,
-   generate different technical questions than before.
-
-8. Ask only one question at a time.
-
-9. Wait until candidate finishes answering before asking next.
-
-10. Maintain friendly, professional tone.
-
-After 3 questions, politely end the interview.
-
-Do not interrupt the candidate.
-`,
-            },
-          ],
-        },
-      };
-
-      await vapiRef.current.start(assistantId, assistantOverrides as any);
+      await vapiRef.current.start(assistantId);
     } catch (error) {
       console.error("Start Error:", error);
       alert("Microphone permission required.");
@@ -155,16 +91,34 @@ Do not interrupt the candidate.
     vapiRef.current?.stop();
   };
 
-  const goToFeedback = () => {
+  // ✅ CORRECT SAVE FUNCTION
+  const goToFeedback = async () => {
     if (!fullTranscript) {
       alert("No conversation recorded.");
       return;
     }
 
-    localStorage.setItem("interviewTranscript", fullTranscript);
-    localStorage.setItem("interviewRole", jobRole);
+    const user = auth.currentUser;
+    if (!user) {
+      alert("User not logged in.");
+      return;
+    }
 
-    router.push("/feedback");
+    try {
+      const docRef = await addDoc(
+        collection(db, "users", user.uid, "interviews"),
+        {
+          role: jobRole,
+          transcript: fullTranscript,
+          createdAt: serverTimestamp(),
+        }
+      );
+
+      router.push(`/feedback?interviewId=${docRef.id}`);
+    } catch (error) {
+      console.error("Error saving interview:", error);
+      alert("Error saving interview.");
+    }
   };
 
   return (
@@ -183,9 +137,7 @@ Do not interrupt the candidate.
 
       <div className="grid grid-cols-2 gap-8 mb-10">
         <div className="bg-[#0f0f14] rounded-2xl h-48 flex flex-col items-center justify-center border border-white/10">
-          <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 ${
-            isCalling ? "bg-green-600 animate-pulse" : "bg-indigo-600"
-          }`}>
+          <div className="w-16 h-16 bg-indigo-600 rounded-full flex items-center justify-center mb-4">
             <Bot size={32} />
           </div>
           <p className="text-sm text-gray-400 font-bold uppercase">
@@ -216,15 +168,6 @@ Do not interrupt the candidate.
       </div>
 
       <div className="bg-[#0f0f14] rounded-xl p-6 flex items-center justify-between border border-white/10">
-        <div>
-          <p className="text-xs text-purple-400 font-bold uppercase mb-1">
-            {status}
-          </p>
-          <p className="text-[10px] text-gray-500 uppercase font-bold">
-            {jobRole}
-          </p>
-        </div>
-
         {!isCalling ? (
           <button
             onClick={startInterview}
@@ -241,7 +184,6 @@ Do not interrupt the candidate.
           </button>
         )}
       </div>
-
     </main>
   );
 }
