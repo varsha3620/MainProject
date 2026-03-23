@@ -1,11 +1,10 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { db, auth } from "@/lib/firebase";
+import { useEffect, useState, Suspense } from "react";
+import { supabase } from "@/lib/supabase";
 
-export default function FeedbackPage() {
+function FeedbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const interviewId = searchParams.get("interviewId");
@@ -14,43 +13,30 @@ export default function FeedbackPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!interviewId) return;
+
     const generateFeedback = async () => {
-      const user = auth.currentUser;
-
-      if (!user || !interviewId) {
-        setFeedback("Interview not found.");
-        setLoading(false);
-        return;
-      }
-
       try {
-        // ✅ 1. Get interview document from Firestore
-        const interviewRef = doc(
-          db,
-          "users",
-          user.uid,
-          "interviews",
-          interviewId
-        );
 
-        const snap = await getDoc(interviewRef);
+        // 1️⃣ Get interview from Supabase
+        const { data: interviewData, error } = await supabase
+          .from("interviews")
+          .select("*")
+          .eq("id", interviewId)
+          .single();
 
-        if (!snap.exists()) {
+        if (error || !interviewData) {
           setFeedback("Interview not found.");
-          setLoading(false);
           return;
         }
 
-        const interviewData = snap.data();
-
-        // ✅ 2. If feedback already exists → just show it
+        // 2️⃣ If feedback already exists → show it
         if (interviewData.feedback) {
           setFeedback(interviewData.feedback);
-          setLoading(false);
           return;
         }
 
-        // ✅ 3. Generate feedback using transcript from Firestore
+        // 3️⃣ Generate feedback
         const res = await fetch("/api/generate-feedback", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -60,16 +46,27 @@ export default function FeedbackPage() {
           }),
         });
 
-        if (!res.ok) throw new Error("API request failed");
+        if (!res.ok) throw new Error("Feedback API failed");
 
         const data = await res.json();
 
-        setFeedback(data.feedback);
+        const generatedFeedback = data.feedback || "No feedback generated.";
+        const score = data.score ?? null;
 
-        // ✅ 4. Save feedback back to Firestore
-        await updateDoc(interviewRef, {
-          feedback: data.feedback,
-        });
+        setFeedback(generatedFeedback);
+
+        // 4️⃣ Save feedback + score
+        const { error: updateError } = await supabase
+          .from("interviews")
+          .update({
+            feedback: generatedFeedback,
+            score: score
+          })
+          .eq("id", interviewId);
+
+        if (updateError) {
+          console.error("Supabase update error:", updateError);
+        }
 
       } catch (error) {
         console.error("Feedback Error:", error);
@@ -85,6 +82,7 @@ export default function FeedbackPage() {
   return (
     <main className="min-h-screen bg-black text-white flex items-center justify-center px-6">
       <div className="bg-[#0f0f14] p-12 rounded-3xl border border-white/10 w-full max-w-4xl shadow-xl">
+
         <h1 className="text-3xl font-bold mb-8 text-white">
           Interview Feedback Report
         </h1>
@@ -110,7 +108,22 @@ export default function FeedbackPage() {
         >
           Back to History
         </button>
+
       </div>
     </main>
+  );
+}
+
+export default function FeedbackPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-black flex items-center justify-center text-white">
+          Loading...
+        </div>
+      }
+    >
+      <FeedbackContent />
+    </Suspense>
   );
 }
